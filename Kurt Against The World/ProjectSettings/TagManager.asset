@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags: []
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - Ground
+  - Water
+  - UI
+  - Character/Player
+  - Character/Friendlies
+  - Character/Enemies
+  - Character/Bosses
+  - Projectiles/Player
+  - Projectiles/Enemy
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: Background
+    uniqueID: 2505759553
+    locked: 0
+  - name: Screen
+    uniqueID: 4106017987
+    locked: 0
+  - name: Middleground
+    uniqueID: 2656029363
+    locked: 0
+  - name: Foreground
+    uniqueID: 620124753
+    locked: 0
+  - name: Particle
+    uniqueID: 2786905669
+    locked: 0
+  - name: GUI
+    uniqueID: 866303055
+    locked: 0
