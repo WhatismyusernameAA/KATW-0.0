@@ -13,6 +13,7 @@ public class PlayerControllerV2 : MonoBehaviour
     public Transform viewmodel;
     public Animator animator;
 
+
     [Header("Input")]
     public Vector2 inputVector;
     public Vector2 inputLookDirection;
@@ -22,7 +23,7 @@ public class PlayerControllerV2 : MonoBehaviour
     float currJumpBuffer;
 
     [Space]
-    public bool pressingJump;
+    public bool pressingSlide;
 
     [Header("Movement")]
     public float topSpeed;
@@ -45,6 +46,7 @@ public class PlayerControllerV2 : MonoBehaviour
 
     [Header("Grounded And Jumping")]
     public bool grounded;
+    bool landed;
 
     [Space]
     public Vector2 groundCheckOffset;
@@ -58,6 +60,7 @@ public class PlayerControllerV2 : MonoBehaviour
 
 
     [Header("Crouching And Sliding")]
+    public bool canCrouchAndSlide;
     public bool isCrouching;
     public bool isSliding;
 
@@ -71,27 +74,48 @@ public class PlayerControllerV2 : MonoBehaviour
     public float slideInitForce;
     public float slideDrag;
     public float slideVelocityCap;
+    public float slideCooldown;
 
     [Space]
     public bool slideToCrouch;
     public bool slideMidair;
 
-    [Header("Rendering")]
+    [Header("Rendering and Animation")]
     public bool isRight;
+
+    [Space]
+    int idleAnim = Animator.StringToHash("Idle");
+    int walkAnim = Animator.StringToHash("Walk");
+    int runAnim = Animator.StringToHash("Run");
+
+    int airUpAnim = Animator.StringToHash("Jump");
+    int airDownAnim = Animator.StringToHash("Fall");
+    int landAnim = Animator.StringToHash("Land");
+
+    int slideAnim = Animator.StringToHash("Slide");
+    int crouchAnim = Animator.StringToHash("Crouch");
+    int crouchWalkAnim = Animator.StringToHash("Sneak");
+
+    float animLockTime;
+    int currentAnimState;
 
     [Header("Effects")]
     public ParticleSystem walkParticles;
     public ParticleSystem slideParticles;
     public ParticleSystem jumpParticles;
 
+
+    // FUNCTIONS ------
     private void Awake()
     {
+        // get original hitbox size for later use
         if (hitbox) hitboxOriginSize = hitbox.transform.localScale;
     }
 
     private void Update()
     {
         #region directional input
+        // sets inputvector to arrow keys
         inputVector.x = 0;
         if (currInput.GetInput("Right"))
             inputVector.x += 1;
@@ -121,30 +145,58 @@ public class PlayerControllerV2 : MonoBehaviour
         #endregion
 
         #region slide input
-        //check if crouch button is pressed, then set isCrouching to true/false
-        if (currInput.GetInputDown("Slide"))
+        if (currInput.GetInputDown("Slide") && canCrouchAndSlide)
         {
-            // set sliding if input while crouching is pressed
+            pressingSlide = true;
+
+            // starts slide if there is directional input
             if (Mathf.Abs(inputVector.x) > 0.1)
             {
+                // prevents slides in midair (unless overriden)
                 if (!slideMidair && !grounded) return;
 
-                slideParticles.Play();
                 isSliding = true;
-                Vector2 slideForceVector = inputVector;
-                slideForceVector.y = 0;
-                rb.AddForce(slideForceVector * slideInitForce, ForceMode2D.Impulse);
+
+                // adds slide force in direction of input
+                if (rb.velocity.x >= topSpeed)
+                {
+                    Vector2 slideForceVector = inputVector;
+                    slideForceVector.y = 0;
+                    rb.AddForce(slideForceVector * slideInitForce, ForceMode2D.Impulse);
+                }
+                // if full speed is not reached, immediately set speed to that limit (so no slow slide)
+                else
+                {
+                    Vector2 slideVelocityVector = inputVector;
+                    slideVelocityVector.y = rb.velocity.y;
+                    slideVelocityVector.x *= topSpeed + slideInitForce;
+                    rb.velocity = slideVelocityVector;
+                }
+
+                // Unity Particle System TM
+                slideParticles.Play();
             }
-            isCrouching = true;
+
+            // only permits crouching if on ground
+            if (grounded)
+                isCrouching = true;
         }
+        // if crouch button is released, release sliding and crouching
         else if (currInput.GetInputUp("Slide"))
         {
-            isCrouching = false;
+            pressingSlide = false;
+
+            // deactivates slide (if slide is currently activated)
             if (isSliding)
             {
                 isSliding = false;
                 slideParticles.Stop();
+
+                // disables slide and crouch for a short time
+                StartCoroutine(StartSlideCooldown());
             }
+
+            isCrouching = false;
         }
         #endregion
         #endregion
@@ -198,8 +250,10 @@ public class PlayerControllerV2 : MonoBehaviour
         #endregion
 
         #region grounded check
+        // casts box towards feet to check for ground
         Vector2 position = transform.position;
         grounded = Physics2D.OverlapBox(position - groundCheckOffset, groundCheckDimentions, 0, groundLayer);
+        if (!grounded) landed = false;
         #endregion
 
         #region jumping
@@ -210,19 +264,25 @@ public class PlayerControllerV2 : MonoBehaviour
             rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
             currJumpBuffer = 0;
 
-            // stop sliding
+            // stops sliding and crouching
             isSliding = false;
             isCrouching = false;
+
+            // stops Unity's Particle System TM
             slideParticles.Stop();
+
+            // disables slide and crouch for a short time
+            StartCoroutine(StartSlideCooldown());
         }
         #endregion
 
         #region crouching and sliding
-        if (isCrouching)
+        
+        // shrink hitbox while sliding or crouching
+        if (isCrouching || isSliding)
         {
             if (!hitbox) return;
 
-            // if crouching, shrink hitbox
             Vector3 crouchedScale = hitboxOriginSize;
             crouchedScale.y *= crouchShrinkPercent;
             hitbox.transform.localScale = crouchedScale;
@@ -233,6 +293,7 @@ public class PlayerControllerV2 : MonoBehaviour
             hitbox.transform.localScale = hitboxOriginSize;
         }
 
+        // if in slide state
         if (isSliding)
         {
             // add drag to slide (so it doesn't go on forever)
@@ -244,13 +305,22 @@ public class PlayerControllerV2 : MonoBehaviour
             if (Mathf.Abs(rb.velocity.x) < slideVelocityCap)
             {
                 isSliding = false;
-                slideParticles.Stop();
+
+                // moves slide to crouch state if enabled
                 if (!slideToCrouch) isCrouching = false;
+
+                // disables slide and crouch for a short time
+                StartCoroutine(StartSlideCooldown());
+
+                // stops particles --and sound
+                slideParticles.Stop();
             }
         }
         #endregion
 
         #region animation
+        // handles facing.
+        //if input is opposite to where player is currently facing, invert the scale
         if(viewmodel && !isSliding)
         {
             if (inputVector.x > 0 && !isRight)
@@ -269,21 +339,58 @@ public class PlayerControllerV2 : MonoBehaviour
             }
         }
 
-        if(animator)
+
+        // Hardcoded Animation System from Tarodev : https://www.youtube.com/watch?v=ZwLekxsSY3Y
+        // Mechanim is too wildin man
+        if (animator)
         {
-            float velocityRatio = Mathf.Abs(rb.velocity.x / (topSpeed * walkMultiplier));
-            animator.SetFloat("xVelocity", velocityRatio);
-            animator.SetFloat("yVelocity", rb.velocity.y);
+            // decides state using conditions
+            int animState = GetState();
 
-            Vector2Int integerInputVector = Vector2Int.CeilToInt(inputVector);
-            animator.SetInteger("xDir", integerInputVector.x);
-            animator.SetInteger("yDir", integerInputVector.y);
-
-            animator.SetBool("grounded", grounded);
-            animator.SetBool("crouching", isCrouching);
-            animator.SetBool("sliding", isSliding);
+            // plays state - if not the same state that's currently playing kekw
+            if (animState == currentAnimState) return;
+            animator.CrossFade(animState, 0f, 0);
+            currentAnimState = animState;
         }    
         #endregion
+    }
+
+    // gets animation state from conditions
+    private int GetState()
+    {
+        if (Time.time < animLockTime) return currentAnimState;
+
+        // priority system... sorts out the current state from condition trees
+        if (isSliding) return slideAnim;
+
+        if (grounded)
+        {
+            // I feel like there's a better way to do this...
+            if (!landed)
+            {
+                landed = true;
+                return LockState(landAnim, 0.1f);
+            }
+
+            if (isCrouching) return inputVector.x == 0 ? crouchAnim : crouchWalkAnim;
+            return inputVector.x == 0 ? idleAnim : runAnim;
+        }
+        return rb.velocity.y > 0 ? airUpAnim : airDownAnim;
+
+        // when state is locked, cannot transition to other states until this state is finished.
+        int LockState(int s, float t)
+        {
+            animLockTime = Time.time + t;
+            return s;
+        }
+    }
+
+    // disables slide and crouch for a short time
+    IEnumerator StartSlideCooldown()
+    {
+        canCrouchAndSlide = false;
+        yield return new WaitForSeconds(slideCooldown);
+        canCrouchAndSlide = true;
     }
 
     private void OnDrawGizmosSelected()
