@@ -100,10 +100,18 @@ public class PlayerStateManager : MonoBehaviour
 
     [Header("Attacks and Charged Attacks")]
     //bool attacked;
+    public float attackDuration;
+    public float comboDuration;
+    public float afterComboCooldown;
 
+    [Space]
     public float toChargeDelay;
     public float chargeEnd;
     public float currChargeTime;
+
+    [Space]
+    // might change this, so that input won't change when attacking, but for now this will do
+    public Vector3 AttackDir;
 
 
     [Header("Rendering and Animation")]
@@ -116,6 +124,7 @@ public class PlayerStateManager : MonoBehaviour
 
     [Space]
     public soundplayer chargeEndFx;
+    [SerializeField] public Shake chargingShakeSettings;
 
     // --- METHODS ---
     private void Awake()

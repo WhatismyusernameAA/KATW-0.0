@@ -8,6 +8,11 @@ public class AttackManagerState : MonoBehaviour
     public PlayerStateManager playerController;
     public Rigidbody2D rb;
 
+    [Header("Camera And Effects")]
+    [SerializeField] public Shake attackShakeSettings;
+    [SerializeField] public Shake pAttackShakeSettings;
+
+    [Space]
     public soundplayer attackFx;
     public soundplayer pAttackFx;
     public soundplayer parryFx;
@@ -16,6 +21,13 @@ public class AttackManagerState : MonoBehaviour
     public Vector3 hitcheckOffset;
     public float upwardsHitcheckOffset;
     public float hitchecksize;
+
+    [Space]
+    public Vector3 pHitcheckOffset;
+    public float upwardsPHitcheckOffset;
+    public float pHitchecksize;
+
+    [Space]
     public LayerMask attackable;
     public LayerMask parriable;
 
@@ -44,7 +56,7 @@ public class AttackManagerState : MonoBehaviour
     {
         if (!playerController.grounded) return;
 
-        Vector2 lookDir = playerController.inputLookDirection;
+        Vector2 lookDir = playerController.AttackDir;
         lookDir.y = 0;
         rb.AddForce(lookDir * attackMomentum, ForceMode2D.Impulse);
     }
@@ -55,8 +67,8 @@ public class AttackManagerState : MonoBehaviour
         // multiply x by input direction
         // add to y if input direction is upwards
         Vector3 setOffset = hitcheckOffset;
-        setOffset.x *= playerController.inputLookDirection.x;
-        setOffset.y += playerController.inputLookDirection.y > 0 ? upwardsHitcheckOffset : 0;
+        setOffset.x *= playerController.AttackDir.x;
+        setOffset.y += playerController.AttackDir.y > 0 ? upwardsHitcheckOffset : 0;
         setOffset += transform.position;
 
         Collider2D hit = Physics2D.OverlapCircle(setOffset, hitchecksize, attackable);
@@ -70,14 +82,16 @@ public class AttackManagerState : MonoBehaviour
             {
                 targetHealthSystem.AddDamage(attackDmg);
 
-                Vector3 hitForce = playerController.inputLookDirection * attackKb;
+                // calculate kb
+                Vector3 hitForce = playerController.AttackDir * attackKb;
                 targetHealthSystem.rb.AddForce(Vector3.up * -targetHealthSystem.rb.velocity.y, ForceMode2D.Impulse);
                 targetHealthSystem.rb.AddForce(hitForce, ForceMode2D.Impulse);
 
                 // play attack effects
-
                 attackFx.transform.position = setOffset;
                 attackFx.PlaySound();
+
+                ShakeManager.instance.ShakeCamera(attackShakeSettings);
             }
         }
     }
@@ -87,12 +101,12 @@ public class AttackManagerState : MonoBehaviour
         // set offset
         // multiply x by input direction
         // add to y if input direction is upwards
-        Vector3 setOffset = hitcheckOffset;
-        setOffset.x *= playerController.inputLookDirection.x;
-        setOffset.y += playerController.inputLookDirection.y > 0 ? upwardsHitcheckOffset : 0;
+        Vector3 setOffset = pHitcheckOffset;
+        setOffset.x *= playerController.AttackDir.x;
+        setOffset.y += playerController.AttackDir.y > 0 ? upwardsPHitcheckOffset : 0;
         setOffset += transform.position;
 
-        Collider2D hit = Physics2D.OverlapCircle(setOffset, hitchecksize, attackable);
+        Collider2D hit = Physics2D.OverlapCircle(setOffset, pHitchecksize, attackable);
 
         if (hit)
         {
@@ -101,19 +115,23 @@ public class AttackManagerState : MonoBehaviour
 
             if (targetHealthSystem)
             {
+                // add damage and stun
                 targetHealthSystem.AddDamage(pAttackDmg);
                 targetHealthSystem.Stun(1f);
 
-                Vector3 hitForce = playerController.inputLookDirection * pAttackKb;
+                // calculate knockback
+                Vector3 hitForce = playerController.AttackDir * pAttackKb;
                 hitForce += Vector3.up * pAttackUpwardsKb;
                 targetHealthSystem.rb.AddForce(Vector3.up * -targetHealthSystem.rb.velocity.y, ForceMode2D.Impulse);
                 targetHealthSystem.rb.AddForce(hitForce, ForceMode2D.Impulse);
 
 
                 // play attack effects
-
                 pAttackFx.transform.position = setOffset;
                 pAttackFx.PlaySound();
+
+                ShakeManager.instance.ShakeCamera(pAttackShakeSettings);
+
             }
         }
     }
@@ -121,11 +139,19 @@ public class AttackManagerState : MonoBehaviour
     private void OnDrawGizmos()
     {
         Vector3 setOffset = hitcheckOffset;
-        setOffset.x *= playerController.inputLookDirection.x;
-        setOffset.y += playerController.inputLookDirection.y > 0 ? upwardsHitcheckOffset : 0;
+        setOffset.x *= playerController.AttackDir.x;
+        setOffset.y += playerController.AttackDir.y > 0 ? upwardsHitcheckOffset : 0;
         setOffset += transform.position;
+
+        Vector3 pSetOffset = pHitcheckOffset;
+        pSetOffset.x *= playerController.AttackDir.x;
+        pSetOffset.y += playerController.AttackDir.y > 0 ? upwardsPHitcheckOffset : 0;
+        pSetOffset += transform.position;
 
         Gizmos.color = Color.blue;
         Gizmos.DrawWireSphere(setOffset, hitchecksize);
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawWireSphere(pSetOffset, pHitchecksize);
+
     }
 }

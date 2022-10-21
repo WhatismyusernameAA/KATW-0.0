@@ -4,36 +4,32 @@ using UnityEngine;
 
 public class AttackState : PlayerState
 {
+    // player dependencies
     Rigidbody2D playerRb;
     AnimationManager playerAnimManager;
     Transform playerViewmodel;
-
+    
+    // state-stored values
     float currAttackBuffer;
+    float attackDur;
+    float comboDur;
+    float comboCooldown;
 
+    bool pressedAttack;
     bool charged;
 
     public override void OnStateInit(PlayerStateManager currentPlayer){
         playerRb = currentPlayer.rb;
         playerAnimManager = currentPlayer.animator;
-        playerViewmodel = currentPlayer.viewmodel;  
+        playerViewmodel = currentPlayer.viewmodel;
+
+        attackDur = currentPlayer.attackDuration;
     }
     public override void OnStateEntered(PlayerStateManager currentPlayer){
+        currAttackBuffer = Time.time + attackDur;
+        comboDur = Time.time + currentPlayer.comboDuration;
 
-        // attack substates, if grounded and if input is upwards
-        if(currentPlayer.grounded)
-        {
-            if (currentPlayer.inputLookDirection.x != 0)
-                playerAnimManager.PlayOverrideAnim(9, 0.2f);
-            else
-                playerAnimManager.PlayOverrideAnim(10, 0.2f);
-        }
-        else
-        {
-            if (currentPlayer.inputLookDirection.x != 0)
-                playerAnimManager.PlayOverrideAnim(13, 0.2f);
-            else
-                playerAnimManager.PlayOverrideAnim(14, 0.2f);
-        }
+        PlayAttack(currentPlayer);
     }
     public override void OnStateExit(PlayerStateManager currentPlayer){
 
@@ -53,55 +49,55 @@ public class AttackState : PlayerState
         #endregion
 
         #region charged attack and looping attack
-        if (currentPlayer.pressingAttack)
-        {
-            // debounce on attack pressing, by checking if button is pressed within attacking frames
-            currAttackBuffer = Time.time + currentPlayer.attackBuffer;
+        if (currentPlayer.pressingAttack) {
+            pressedAttack = true;
 
-            // add to charge duration, and play charging animation if charge limit is reached
+            // debounce on attack pressing, by checking if button is pressed within attacking frames
+            //currAttackBuffer = Time.time + currentPlayer.attackBuffer;
+
+            #region charge logic
+            // add to charge duration
             currentPlayer.currChargeTime += Time.deltaTime;
 
-            if (currentPlayer.currChargeTime >= currentPlayer.toChargeDelay)
-            {
+            // play charging animation if player is still pressing button (they want to start charging)
+            if (currentPlayer.currChargeTime >= attackDur) {
                 playerAnimManager.TransitionAnim(7);
-                if(currentPlayer.currChargeTime >= currentPlayer.chargeEnd && !charged)
-                {
+                
+                // play charge finished animation when charge limit is reached
+                if (currentPlayer.currChargeTime >= currentPlayer.chargeEnd && !charged) {
                     //playerAnimManager.TransitionAnim();
-                    currentPlayer.chargeEndFx.PlaySound();
+                    
                     charged = true;
-                }
-            }
-        }
-        else
-        {
-            // plays charging attack if charge duration limit is reached
-            if (charged)
-            {
-                if (currentPlayer.grounded)
-                {
-                    if (currentPlayer.inputLookDirection.x != 0)
-                        playerAnimManager.PlayOverrideAnim(11, 0.2f);
-                    else
-                        playerAnimManager.PlayOverrideAnim(12, 0.2f);
-                }
-                else
-                {
-                    if (currentPlayer.inputLookDirection.x != 0)
-                        playerAnimManager.PlayOverrideAnim(15, 0.2f);
-                    else
-                        playerAnimManager.PlayOverrideAnim(16, 0.2f);
-                }
-            }
 
+                    //play effects
+                    currentPlayer.chargeEndFx.PlaySound();
+                    //ShakeManager.instance.SetNoiseProperties(currentPlayer.chargingShakeSettings);
+                }
+            }
+            #endregion
+        }
+        else {
+            // plays charging attack if charge duration limit is reached and attack is released
+            if (charged)
+                PlayPAttack(currentPlayer);
+
+            // resets everything
             charged = false;
             currentPlayer.currChargeTime = 0;
         }
 
-        // only transitions to movement if button is not pressed within the time debounce
-        if (currAttackBuffer <= Time.time)
-        {
-            currentPlayer.SwitchState(currentPlayer.movementState);
+        // only transitions to movement if button is not pressed within attack duration
+        if (currAttackBuffer <= Time.time) {
+            if (pressedAttack) {
+                currAttackBuffer += attackDur;
+            }
+            // else, add another attack to the timer    
+            else {
+                currentPlayer.SwitchState(currentPlayer.movementState);
+            }
+            pressedAttack = false;
         }
+        
         #endregion
 
         #region facing
@@ -126,10 +122,42 @@ public class AttackState : PlayerState
         #endregion
     }
 
-    IEnumerator PAttackDebounce()
+    void PlayAttack(PlayerStateManager player)
     {
-        // will use this for adding animation debounce after charged attack
-        // or some other implement, i'm still skeptical
-        yield return null;
+        player.AttackDir = player.inputLookDirection;
+        // attack substates, if grounded and if input is upwards
+        if (player.grounded)
+        {
+            if (player.inputLookDirection.x != 0)
+                playerAnimManager.PlayOverrideAnim(9, 0.2f);
+            else
+                playerAnimManager.PlayOverrideAnim(10, 0.2f);
+        }
+        else
+        {
+            if (player.inputLookDirection.x != 0)
+                playerAnimManager.PlayOverrideAnim(13, 0.2f);
+            else
+                playerAnimManager.PlayOverrideAnim(14, 0.2f);
+        }
+    }
+
+    void PlayPAttack(PlayerStateManager player)
+    {
+        player.AttackDir = player.inputLookDirection;
+        if (player.grounded)
+        {
+            if (player.inputLookDirection.x != 0)
+                playerAnimManager.PlayOverrideAnim(15, 0.2f);
+            else
+                playerAnimManager.PlayOverrideAnim(16, 0.2f);
+        }
+        else
+        {
+            if (player.inputLookDirection.x != 0)
+                playerAnimManager.PlayOverrideAnim(15, 0.2f);
+            else
+                playerAnimManager.PlayOverrideAnim(16, 0.2f);
+        }
     }
 }

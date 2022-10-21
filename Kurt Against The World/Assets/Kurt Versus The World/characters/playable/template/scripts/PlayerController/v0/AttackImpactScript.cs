@@ -152,9 +152,19 @@ public class AttackImpactScript : MonoBehaviour
         if (ShakeManager.instance)
         {
             if (!charged)
-                ShakeManager.instance.ShakeCamera(punchShakeDuration, punchShakeAmplitude, punchShakeFrequency);
+                ShakeManager.instance.ShakeCamera(new Shake()
+                {
+                    shakeAmplitude = punchShakeAmplitude,
+                    shakeDuration = punchShakeDuration,
+                    shakeFrequency = punchShakeFrequency
+                });
             else
-                ShakeManager.instance.ShakeCamera(ChargedpunchShakeDuration, ChargedpunchShakeAmplitude, ChargedpunchShakeFrequency);
+                ShakeManager.instance.ShakeCamera(new Shake()
+                {
+                    shakeAmplitude = punchShakeAmplitude,
+                    shakeDuration = punchShakeDuration,
+                    shakeFrequency = punchShakeFrequency
+                });
         }
         #endregion
     }
